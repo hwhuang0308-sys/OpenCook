@@ -1,0 +1,74 @@
+import { $ } from "bun"
+import semver from "semver"
+import path from "path"
+
+const rootPkgPath = path.resolve(import.meta.dir, "../../../package.json")
+const rootPkg = await Bun.file(rootPkgPath).json()
+const expectedBunVersion = rootPkg.packageManager?.split("@")[1]
+
+if (!expectedBunVersion) {
+  throw new Error("packageManager field not found in root package.json")
+}
+
+// relax version requirement
+const expectedBunVersionRange = `^${expectedBunVersion}`
+
+if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
+  throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`)
+}
+
+const env = {
+  OPENCOOK_CHANNEL: process.env["OPENCOOK_CHANNEL"],
+  OPENCOOK_BUMP: process.env["OPENCOOK_BUMP"],
+  OPENCOOK_VERSION: process.env["OPENCOOK_VERSION"],
+  OPENCOOK_RELEASE: process.env["OPENCOOK_RELEASE"],
+}
+const CHANNEL = await (async () => {
+  if (env.OPENCOOK_CHANNEL) return env.OPENCOOK_CHANNEL
+  if (env.OPENCOOK_BUMP) return "latest"
+  if (env.OPENCOOK_VERSION && !env.OPENCOOK_VERSION.startsWith("0.0.0-")) return "latest"
+  const branch = await $`git branch --show-current`.text().then((x) => x.trim())
+  if (!branch) return "detached"
+  const channel = branch.replace(/[^a-zA-Z0-9._-]/g, "-")
+  if (/^[a-zA-Z0-9]/.test(channel)) return channel
+  return `branch-${channel}`
+})()
+const IS_PREVIEW = CHANNEL !== "latest"
+
+const VERSION = await (async () => {
+  if (env.OPENCOOK_VERSION) return env.OPENCOOK_VERSION
+  if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${previewBuildNumber()}`
+  const t = env.OPENCOOK_BUMP?.toLowerCase()
+  if (!t) return rootPkg.version
+  if (t !== "major" && t !== "minor" && t !== "patch") throw new Error("OPENCOOK_BUMP must be major, minor or patch")
+  return semver.inc(rootPkg.version, t) ?? rootPkg.version
+})()
+
+function previewBuildNumber() {
+  const runNumber = process.env["GITHUB_RUN_NUMBER"]
+  if (!runNumber) return new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")
+  const runAttempt = process.env["GITHUB_RUN_ATTEMPT"]
+  if (runAttempt && runAttempt !== "1") return `${runNumber}.${runAttempt}`
+  return runNumber
+}
+
+const team: string[] = []
+
+export const Script = {
+  get channel() {
+    return CHANNEL
+  },
+  get version() {
+    return VERSION
+  },
+  get preview() {
+    return IS_PREVIEW
+  },
+  get release(): boolean {
+    return !!env.OPENCOOK_RELEASE
+  },
+  get team() {
+    return team
+  },
+}
+console.log(`opencook script`, JSON.stringify(Script, null, 2))

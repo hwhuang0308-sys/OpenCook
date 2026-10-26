@@ -1,0 +1,50 @@
+import { useTheme } from "../context/theme"
+import { DialogHeader, DialogLayout } from "../ui/dialog"
+import { useData } from "../context/data"
+import { For, Match, Switch, Show, createMemo } from "solid-js"
+
+export function DialogStatus() {
+  const data = useData()
+  const theme = useTheme().surface("dialog")
+
+  const mcp = createMemo(() => data.location.mcp.server.list() ?? [])
+  const color = (status: string) => {
+    if (status === "connected") return theme.text.feedback.success.base
+    if (status === "failed") return theme.text.feedback.error.base
+    if (status === "needs_auth") return theme.text.feedback.warning.base
+    return theme.text.muted
+  }
+  return (
+    <DialogLayout header={<DialogHeader title="Status 状态" />}>
+      <Show when={mcp().length > 0} fallback={<text fg={theme.text.base}>No MCP servers 暂无 MCP 服务</text>}>
+        <box>
+          <text fg={theme.text.base}>
+            {mcp().length} MCP server MCP 服务{mcp().length === 1 ? "" : "s"}
+          </text>
+          <For each={mcp()}>
+            {(item) => (
+              <box flexDirection="row" gap={1}>
+                <text flexShrink={0} style={{ fg: color(item.status.status) }}>
+                  •
+                </text>
+                <text fg={theme.text.base} wrapMode="word">
+                  <b>{item.name}</b>{" "}
+                  <span style={{ fg: theme.text.muted }}>
+                    <Switch fallback={item.status.status}>
+                      <Match when={item.status.status === "connected"}>Connected 已连接</Match>
+                      <Match when={item.status.status === "failed" && item.status}>{(val) => val().error}</Match>
+                      <Match when={item.status.status === "disabled"}>Disabled in configuration 已在配置中停用</Match>
+                      <Match when={item.status.status === "needs_auth" && item.status}>
+                        {(val) => `Needs authentication 需要认证: ${val().error}`}
+                      </Match>
+                    </Switch>
+                  </span>
+                </text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
+    </DialogLayout>
+  )
+}

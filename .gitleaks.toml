@@ -1,0 +1,12 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "The literal alt+shift+down keyboard binding is not an API key."
+condition = "AND"
+paths = ['''^packages/tui/test/config(?:-v2)?\.test\.tsx$''']
+regexTarget = "match"
+regexes = ['''^key: "alt\+shift\+down"$''']

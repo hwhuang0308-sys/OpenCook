@@ -1,0 +1,46 @@
+{
+  "$schema": "https://v2-8-13.turborepo.dev/schema.json",
+  "globalDependencies": ["patches/**", "bunfig.toml", ".npmrc", ".github/workflows/check.yml", "package.json"],
+  "globalEnv": ["CI", "OPENCOOK_DISABLE_SHARE"],
+  "globalPassThroughEnv": ["CI", "OPENCOOK_DISABLE_SHARE"],
+  "tasks": {
+    "typecheck": {},
+    "@opencook/cli#typecheck": {
+      "dependsOn": ["@opencook/core#typecheck"]
+    },
+    "test:components": {
+      "outputs": [],
+      "cache": false
+    },
+    "@opencook/sdk#typecheck": {
+      "dependsOn": ["@opencook/core#typecheck"]
+    },
+    "@opencook/server#typecheck": {
+      "dependsOn": ["@opencook/core#typecheck"]
+    },
+    "@opencook/simulation#typecheck": {
+      "dependsOn": ["@opencook/core#typecheck"]
+    },
+    "@opencook/tui#typecheck": {
+      "dependsOn": ["@opencook/core#typecheck"]
+    },
+    "build": {
+      "dependsOn": ["transit"],
+      "outputs": ["dist/**"]
+    },
+    // Workspace packages export their sources, so tests never wait for a dependency's build; the build job in
+    // Build scripts check the library outputs. No package has a transit script: it runs nothing and only folds every
+    // workspace dependency into the test hash.
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    // Every package with a test script runs here, so a new suite cannot be left out of CI.
+    "test": {
+      "dependsOn": ["transit"],
+      "outputs": []
+    },
+    "@opencook/sdk#verify:package": {
+      "outputs": []
+    }
+  }
+}

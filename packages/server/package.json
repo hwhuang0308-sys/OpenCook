@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencook/server",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "bun run script/build.ts",
+    "test": "bun test --only-failures",
+    "typecheck": "tsgo -b",
+    "probe:workerd": "bun run script/workerd-probe.ts"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@effect/platform-node-shared": "catalog:",
+    "@opencook/core": "workspace:*",
+    "@opencook/protocol": "workspace:*",
+    "@opencook/schema": "workspace:*",
+    "@opencook/simulation": "workspace:*",
+    "@opencook/util": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@opencode-ai/pty": "0.2.0",
+    "@opencook/client": "workspace:*",
+    "@opencook/plugin": "workspace:*",
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "fast-check": "catalog:"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencook/plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "bun test --only-failures",
+    "typecheck": "tsgo --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "exports": {
+    ".": "./src/promise/index.ts",
+    "./effect": "./src/effect/index.ts",
+    "./host": "./src/host.ts",
+    "./runtime": "./src/runtime.ts",
+    "./tui": "./src/tui/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "imports": {
+    "#plugin-source": {
+      "bun": "./src/source.bun.ts",
+      "node": "./src/source.node.ts",
+      "default": "./src/source.node.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@ai-sdk/provider": "3.0.8",
+    "@opencook/ai": "workspace:*",
+    "@opencook/client": "workspace:*",
+    "@opencook/protocol": "workspace:*",
+    "@opencook/schema": "workspace:*",
+    "@opencook/util": "workspace:*",
+    "effect": "catalog:"
+  },
+  "peerDependencies": {
+    "@opencook/theme": "workspace:*",
+    "@opentui/core": ">=0.5.17",
+    "@opentui/solid": ">=0.5.17",
+    "solid-js": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opencook/theme": {
+      "optional": true
+    },
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@opencook/theme": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/solid": "catalog:",
+    "@tsconfig/bun": "catalog:",
+    "@tsconfig/node22": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "@typescript/native-preview": "catalog:"
+  }
+}

@@ -1,0 +1,190 @@
+import { Plugin } from "@opencook/plugin/tui"
+import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
+import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
+import { createMemo, createSignal, Show } from "solid-js"
+import { Spinner } from "../../component/spinner"
+import { useConfig } from "../../config"
+import { useClipboard } from "../../context/clipboard"
+import { Keymap } from "../../context/keymap"
+import { useTheme, useThemes } from "../../context/theme"
+import { usePlugin } from "../../plugin/context"
+import { DIALOG_INSET, DialogBleed, DialogFooter, DialogHeader, DialogLayout } from "../../ui/dialog"
+import { useToast } from "../../ui/toast"
+import { getScrollAcceleration } from "../../util/scroll"
+
+// session.generate exposes the session's tools but runs no tool loop, so a
+// tool call would surface as an empty answer.
+const instructions = [
+  "The user is asking a quick side question about the conversation so far.",
+  "Answer directly and concisely in markdown from what you already know.",
+  "Do not call any tools and do not take any actions.",
+].join(" ")
+
+export default Plugin.define({
+  id: "opencook.btw",
+  setup(context) {
+    const [pending, setPending] = createSignal(0)
+
+    context.ui.slot({
+      append: "prompt.footer.status",
+      render: () => {
+        const theme = useTheme()
+        return (
+          <Show when={pending() > 0}>
+            <box flexShrink={0}>
+              <Spinner color={theme.hue.interactive[200]}>/btw</Spinner>
+            </box>
+          </Show>
+        )
+      },
+    })
+
+    context.ui.slot({
+      append: "app",
+      render() {
+        const toast = useToast()
+        // Dialogs render beside PluginProvider, so Answer cannot call usePlugin().
+        const plugins = usePlugin()
+        context.keymap.layer(() => ({
+          mode: "global",
+          commands: [
+            {
+              id: "session.aside",
+              title: "Ask a side question 询问旁支问题",
+              description:
+                "One-shot answer from the session's context without adding to the conversation 根据当前会话单次回答，不加入主对话",
+              group: "Session 会话",
+              palette: undefined,
+              async run(input) {
+                const route = context.ui.router.current()
+                if (route.type !== "session") {
+                  toast.show({ message: "Open a session first 请先打开一个会话", variant: "warning" })
+                  return
+                }
+                const question =
+                  input?.trim() ||
+                  (await context.ui.dialog.prompt({ title: "/btw", placeholder: "Ask anything 说说你的问题" }))
+                if (!question) return
+                setPending((count) => count + 1)
+                await context.client.session
+                  .generate({ sessionID: route.sessionID, prompt: [instructions, question].join("\n\n") })
+                  .then((result) => {
+                    context.ui.dialog.show(() => (
+                      <Answer question={question} answer={result.text.trim()} markdown={plugins.markdown} />
+                    ))
+                    context.ui.dialog.set({ size: "large", centered: true })
+                  })
+                  .catch((cause: unknown) => toast.error(cause))
+                  .finally(() => setPending((count) => count - 1))
+              },
+            },
+          ],
+        }))
+        return null
+      },
+    })
+  },
+})
+
+export function Answer(props: {
+  question: string
+  answer: string
+  markdown: ReturnType<typeof usePlugin>["markdown"]
+}) {
+  const toast = useToast()
+  const clipboard = useClipboard()
+  const theme = useTheme().surface("dialog")
+  const overlay = useTheme()
+  const syntax = useThemes().currentSyntax
+  const config = useConfig().data
+  const dimensions = useTerminalDimensions()
+  const maxHeight = createMemo(() => Math.max(8, Math.floor(dimensions().height * 0.6)))
+  const [copied, setCopied] = createSignal(false)
+  let scroll: ScrollBoxRenderable | undefined
+
+  const copy = () => {
+    void clipboard
+      .write(props.answer)
+      .then(() => setCopied(true))
+      .catch(toast.error)
+  }
+
+  Keymap.createLayer(() => ({
+    mode: "modal",
+    commands: [{ bind: "c", title: "Copy answer 复制答案", group: "Dialog 对话框", run: copy }],
+  }))
+
+  useKeyboard((event) => {
+    if (!scroll) return
+    if (event.name === "up" || event.name === "k") return scroll.scrollBy(-1)
+    if (event.name === "down" || event.name === "j") return scroll.scrollBy(1)
+    if (event.name === "pageup") return scroll.scrollBy(-maxHeight())
+    if (event.name === "pagedown") return scroll.scrollBy(maxHeight())
+    if (event.name === "home") return scroll.scrollTo(0)
+    if (event.name === "end") return scroll.scrollTo(scroll.scrollHeight)
+  })
+
+  return (
+    <DialogLayout
+      header={
+        <DialogHeader
+          gap={2}
+          titleView={
+            <text attributes={TextAttributes.BOLD} fg={theme.text.base} flexShrink={0}>
+              /btw
+            </text>
+          }
+        >
+          <text fg={theme.text.muted} wrapMode="none" flexGrow={1} truncate>
+            {props.question.replace(/\s+/g, " ")}
+          </text>
+        </DialogHeader>
+      }
+      footer={{
+        actions: {
+          primary: [
+            copied()
+              ? { title: "✓ copied 已复制", color: theme.text.feedback.success.base, onTrigger: copy }
+              : { title: "copy response 复制回复", key: "c", onTrigger: copy },
+          ],
+        },
+      }}
+      legacyFooter={
+        <DialogFooter
+          actions={{
+            secondary: [
+              copied()
+                ? { title: "✓ copied 已复制", color: theme.text.feedback.success.base, onTrigger: copy }
+                : { title: "copy 复制", key: "c", onTrigger: copy },
+              { title: "scroll 滚动", key: "j/k ↑/↓" },
+            ],
+          }}
+        />
+      }
+    >
+      <DialogBleed>
+        <scrollbox
+          ref={(element: ScrollBoxRenderable) => (scroll = element)}
+          maxHeight={maxHeight()}
+          contentOptions={{ minHeight: 0 }}
+          backgroundColor={overlay.background.raised.high}
+          scrollbarOptions={{ visible: false }}
+          scrollAcceleration={getScrollAcceleration(config)}
+        >
+          <box paddingLeft={DIALOG_INSET} paddingRight={DIALOG_INSET} paddingTop={1} paddingBottom={1}>
+            <markdown
+              syntaxStyle={syntax()}
+              renderNode={props.markdown()}
+              content={props.answer}
+              conceal
+              internalBlockMode="top-level"
+              tableOptions={{ style: "grid", cellPaddingX: 1 }}
+              fg={overlay.markdown.text}
+              bg={overlay.background.raised.high}
+            />
+          </box>
+        </scrollbox>
+      </DialogBleed>
+    </DialogLayout>
+  )
+}

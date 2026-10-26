@@ -1,0 +1,6 @@
+OpenCook contains software derived from OpenCode (https://github.com/anomalyco/opencode).
+The original software is distributed under the MIT License.
+Copyright (c) 2025 opencode. The original copyright and license are retained in LICENSE.
+Other third-party components retain their respective licenses and attribution.
+
+The third-party @opencode-ai/pty package and its executable retain their published names. They are dependencies, not OpenCook application identifiers.

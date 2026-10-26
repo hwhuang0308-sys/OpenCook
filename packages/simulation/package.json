@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencook/simulation",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./backend": "./src/backend/index.ts",
+    "./backend/*": "./src/backend/*.ts",
+    "./frontend": "./src/frontend/simulation.ts",
+    "./frontend/*": "./src/frontend/*.ts",
+    "./protocol": "./src/protocol/index.ts",
+    "./recording": "./src/recording.ts"
+  },
+  "scripts": {
+    "build": "bun run script/build.ts",
+    "test": "bun test --timeout 30000 --only-failures",
+    "typecheck": "tsgo -b"
+  },
+  "dependencies": {
+    "@opencook/core": "workspace:*",
+    "@opencook/ai": "workspace:*",
+    "@opencook/plugin": "workspace:*",
+    "@opencook/protocol": "workspace:*",
+    "@opencook/util": "workspace:*",
+    "@opentui/core": "catalog:",
+    "effect": "catalog:",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/ws": "8.18.1",
+    "@typescript/native-preview": "catalog:"
+  }
+}

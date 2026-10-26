@@ -1,0 +1,47 @@
+{
+  "$schema": "./docs/schemas/opencook.schema.json",
+  "model": "opencook/cook",
+  "cooking_models": {
+    "chat": {
+      "enabled": false,
+      "base_url": "",
+      "model": "",
+      "api_key": "",
+      "context": 128000,
+      "output": 8192
+    },
+    "vision": {
+      "enabled": false,
+      "base_url": "",
+      "model": "",
+      "api_key": "",
+      "context": 128000,
+      "output": 8192
+    },
+    "speech": {
+      "enabled": false,
+      "base_url": "",
+      "model": "",
+      "api_key": "",
+      "context": 8192,
+      "output": 1,
+      "voice": "female_news"
+    },
+    "embedding": {
+      "enabled": false,
+      "base_url": "",
+      "model": "",
+      "api_key": "",
+      "context": 8192,
+      "output": 1
+    },
+    "rerank": {
+      "enabled": false,
+      "base_url": "",
+      "model": "",
+      "api_key": "",
+      "context": 8192,
+      "output": 1
+    }
+  }
+}

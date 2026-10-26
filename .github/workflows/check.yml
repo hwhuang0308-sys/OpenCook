@@ -1,0 +1,72 @@
+name: OpenCook checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun audit
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install ripgrep on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Install ripgrep on macOS
+        if: runner.os == 'macOS'
+        run: command -v rg || brew install ripgrep
+      - name: Install ripgrep on Windows
+        if: runner.os == 'Windows'
+        run: choco install ripgrep --no-progress -y
+      - run: rg --version
+      - run: bun install --frozen-lockfile
+      - run: bun turbo run test --concurrency=2
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bun run build --single --skip-install
+        working-directory: packages/cli
+      - run: bun run script/service-smoke.ts
+        working-directory: packages/cli
+      - name: Verify compiled sensor runtime
+        if: runner.os != 'Windows'
+        shell: bash
+        run: python3 script/device-smoke.py "$(bun -e 'console.log(`dist/cli-${process.platform}-${process.arch}/bin/opencook`)')"
+        working-directory: packages/cli

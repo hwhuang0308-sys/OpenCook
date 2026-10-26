@@ -126,24 +126,30 @@ describe("Watcher lifecycle", () => {
             }),
             (subscription) => Effect.promise(() => subscription?.unsubscribe() ?? Promise.resolve()),
           )
-          yield* Effect.promise(async () => {
-            await fs.mkdir(path.join(tmp.path, "nested"))
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, "nested")))
+          // Native watchers may coalesce changes or acquire their OS handle asynchronously.
+          // Keep producing changes until delivery, without requiring one particular write's event.
+          const writes = yield* Effect.promise(async () => {
             await fs.writeFile(path.join(tmp.path, "nested", "opencook.json"), "ignored")
             await fs.writeFile(path.join(tmp.path, "opencook.jsonc"), "ignored")
             await fs.writeFile(path.join(tmp.path, "opencook.json"), "first")
-          })
+          }).pipe(Effect.repeat(Schedule.spaced("10 millis")), Effect.forkScoped({ startImmediately: true }))
           yield* Effect.sync(() => events.length).pipe(
             Effect.filterOrFail((count) => count > 0),
             Effect.retry(Schedule.spaced("10 millis")),
             Effect.timeout("1 second"),
+            Effect.ensuring(Fiber.interrupt(writes)),
           )
           expect(events.every((update) => update.path === path.join(tmp.path, "opencook.json"))).toBe(true)
-          yield* Effect.sleep("10 millis")
-          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".opencook")))
+          const creates = yield* Effect.promise(async () => {
+            await fs.rm(path.join(tmp.path, ".opencook"), { recursive: true, force: true })
+            await fs.mkdir(path.join(tmp.path, ".opencook"))
+          }).pipe(Effect.repeat(Schedule.spaced("10 millis")), Effect.forkScoped({ startImmediately: true }))
           yield* Effect.sync(() => events.some((update) => update.path === path.join(tmp.path, ".opencook"))).pipe(
             Effect.filterOrFail(Boolean),
             Effect.retry(Schedule.spaced("10 millis")),
             Effect.timeout("1 second"),
+            Effect.ensuring(Fiber.interrupt(creates)),
           )
         }).pipe(Effect.provide(Watcher.nativeLayer)),
       ),

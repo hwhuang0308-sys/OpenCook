@@ -1,5 +1,5 @@
 import path from "node:path"
-import { describe, expect } from "bun:test"
+import { expect } from "bun:test"
 import { SdkPlugins } from "@opencook/core/plugin/sdk"
 import { Effect, Layer, Schedule } from "effect"
 import { tmpdir } from "../../core/test/fixture/tmpdir"
@@ -119,50 +119,24 @@ it.live("returns 501 when a registered VCS provider has no initializer", () =>
   }),
 )
 
-const describeHg = Bun.which("hg") ? describe : describe.skip
-
-describeHg("Mercurial initialization", () => {
-  it.live(
-    "initializes and serves an untracked-file diff through the Hg provider",
-    () =>
-      Effect.gen(function* () {
-        const tmp = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencook-vcs-hg-init-")))
-        yield* Effect.promise(() => Bun.write(path.join(tmp.path, "hello.txt"), "hello\n"))
-        const server = yield* startServer(path.join(tmp.path, "config"))
-        const url = new URL("/api/vcs/init", server.base)
-        url.searchParams.set("location[directory]", tmp.path)
-        url.searchParams.set("provider", "hg")
-        const initialized = yield* Effect.promise(() => fetch(url, { method: "POST", headers: server.headers }))
-        expect(initialized.status).toBe(400)
-        expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, ".hg", "requires")).exists())).toBe(true)
-        url.pathname = "/api/vcs"
-        const info = yield* Effect.tryPromise({
-          try: async () => {
-            const response = await fetch(url, { headers: server.headers })
-            const body: unknown = await response.json()
-            if (!isRecord(body) || !isRecord(body.data) || body.data.provider !== "hg")
-              throw new Error("Mercurial provider not ready")
-            return body
-          },
-          catch: (cause) => cause,
-        }).pipe(Effect.retry(Schedule.spaced("10 millis")), Effect.timeout("2 seconds"))
-        expect(info).toMatchObject({ data: { provider: "hg" } })
-        url.pathname = "/api/vcs/diff"
-        url.searchParams.set("mode", "working")
-        const diff = yield* Effect.promise(() => fetch(url, { headers: server.headers }))
-        expect(diff.status).toBe(200)
-        expect(yield* Effect.promise(() => diff.json())).toMatchObject({
-          data: expect.arrayContaining([expect.objectContaining({ file: "hello.txt" })]),
-        })
-        url.pathname = "/api/vcs/init"
-        url.searchParams.delete("mode")
-        url.searchParams.set("provider", "git")
-        const repeated = yield* Effect.promise(() => fetch(url, { method: "POST", headers: server.headers }))
-        expect(repeated.status).toBe(409)
-      }),
-    15_000,
-  )
-})
+it.live("does not initialize Mercurial without a registered extension", () =>
+  Effect.gen(function* () {
+    const tmp = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencook-no-hg-extension-")))
+    yield* Effect.promise(() => Bun.write(path.join(tmp.path, "hello.txt"), "hello\n"))
+    const server = yield* startServer(path.join(tmp.path, "config"))
+    const url = new URL("/api/vcs/init", server.base)
+    url.searchParams.set("location[directory]", tmp.path)
+    url.searchParams.set("provider", "hg")
+    const response = yield* Effect.promise(() => fetch(url, { method: "POST", headers: server.headers }))
+    expect(response.status).toBe(400)
+    expect(yield* Effect.promise(() => response.json())).toMatchObject({
+      field: "provider",
+      message: "Unknown VCS provider",
+    })
+    expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, ".hg", "requires")).exists())).toBe(false)
+    expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, "hello.txt")).text())).toBe("hello\n")
+  }),
+)
 
 it.live("maps a failing base provider to HTTP 503 instead of null metadata", () =>
   Effect.gen(function* () {
@@ -222,7 +196,3 @@ it.live("maps a failing base provider to HTTP 503 instead of null metadata", () 
     })
   }),
 )
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
